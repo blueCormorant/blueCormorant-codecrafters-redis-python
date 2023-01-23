@@ -86,15 +86,13 @@ def handle_connection(client_connection):
             if type(result) is bytes:
                 if result == b"ping":
                     client_connection.send(b"+PONG\r\n")
-                #break
             elif type(result) is list:
                 if len(result) <= 2:
-                    if result[0] == b"ECHO":
+                    if result[0] == b"echo":
                         arg = f"+{result[1].decode()}"
                         client_connection.send(arg.encode("UTF-8") + b"\r\n")
                     elif result[0] == b"ping":
                         client_connection.send(b"+PONG\r\n")
-                #break
             else:
                 client_connection.send(b"-ERR Unknown Command\r\n")
         except ConnectionError as error:
