@@ -70,6 +70,20 @@ class RESPDecoder:
 
         return result
 
+class DataStore:
+
+    def __init__(self):
+        self.data = {}
+
+    def __getitem__(self, key):
+        return self.data[key]
+
+    def __setitem__(self , key, value):
+        self.data[key] = value
+
+    def __iter__(self):
+        return iter(self.data)
+
 def is_bytes(obj):
     try:
         obj.decode()
@@ -77,37 +91,39 @@ def is_bytes(obj):
     except (UnicodeDecodeError, AttributeError):
         return False
 
-def handle_connection(client_connection):
-    print(f"New connection: {client_connection}")
+def handle_connection(client_connection, data):
     while True:
         try:
             result = RESPDecoder(client_connection).decode()
-            print(f"result = {result}")
             if type(result) is bytes:
                 if result == b"ping":
                     client_connection.send(b"+PONG\r\n")
             elif type(result) is list:
-                if len(result) <= 2:
-                    if result[0] == b"echo":
-                        arg = f"+{result[1].decode()}"
-                        client_connection.send(arg.encode("UTF-8") + b"\r\n")
-                    elif result[0] == b"ping":
-                        client_connection.send(b"+PONG\r\n")
+                if result[0] == b"echo":
+                    arg = f"+{result[1].decode()}"
+                    client_connection.send(arg.encode("UTF-8") + b"\r\n")
+                elif result[0] == b"ping":
+                    client_connection.send(b"+PONG\r\n")
+                elif result[0] == b"get":
+                    key = result[1].decode()
+                    value = data[key]
+                    client_connection.send(value.encode("UTF-8") + b"\r\n")
+                if result[0] == b"set":
+                    key = f"{result[1].decode()}"
+                    value = f"{result[2].decode()}"
+                    data[key] = value
+                    client_connection.send(b"+OK\r\n")
             else:
                 client_connection.send(b"-ERR Unknown Command\r\n")
         except ConnectionError as error:
-            print(error)
             break # Exit thread if the connection closes
 
 def main():
-    # You can use print statements as follows for debugging, they'll be visible when running tests.
-    print("Logs from your program will appear here!")
-
+    data = DataStore()
     server_socket = socket.create_server(("localhost", 6379), reuse_port=True)
     while True:
         client_connection, _ = server_socket.accept() # wait for client
-        threading.Thread(target=handle_connection, args=(client_connection,)).start()
-
+        threading.Thread(target=handle_connection, args=(client_connection, data)).start()
 
 if __name__ == "__main__":
     main()
