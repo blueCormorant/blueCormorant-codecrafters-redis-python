@@ -1,6 +1,7 @@
 
 import threading
 import socket
+import time
 
 # Wraps socket.Socket adding support for buffered reading.
 # 
@@ -70,6 +71,18 @@ class RESPDecoder:
 
         return result
 
+
+class DataItem:
+
+    def __init__(self, item, miliseconds=None):
+        self.item = item
+        self.miliseconds = miliseconds
+        # Record expiry time in miliseconds
+        try:
+            self.expiry_time = time.time()*1000 + float(miliseconds)
+        except:
+            self.expiry_time = None
+
 class DataStore:
 
     def __init__(self):
@@ -83,6 +96,21 @@ class DataStore:
 
     def __iter__(self):
         return iter(self.data)
+
+    def __str__(self):
+
+        if len(self.data) == 0:
+            return "{}"
+
+        table, footer = "-"*10 + "\n", "-"*10
+        for key in self.data:
+            item = self.data[key]
+            if item.expiry_time is None:
+                table += f"{key}:{item.item}:None\n\n"
+            else:
+                table += f"{key}:{item.item}:{item.expiry_time/1000}\n\n"
+                
+        return table
 
 def is_bytes(obj):
     try:
@@ -100,19 +128,34 @@ def handle_connection(client_connection, data):
                     client_connection.send(b"+PONG\r\n")
             elif type(result) is list:
                 if result[0] == b"echo":
-                    arg = f"+{result[1].decode()}"
-                    client_connection.send(arg.encode("UTF-8") + b"\r\n")
+                    response = f"{result[1].decode()}"
+                    client_connection.send(f"+{response}".encode("UTF-8") + b"\r\n")
                 elif result[0] == b"ping":
                     client_connection.send(b"+PONG\r\n")
                 elif result[0] == b"get":
                     key = result[1].decode()
-                    value = f"+{data[key]}"
-                    client_connection.send(value.encode("UTF-8") + b"\r\n")
+                    value = data[key].item
+                    try:
+                        curr_time = time.time()*1000
+                        if curr_time < data[key].expiry_time:
+                            client_connection.send(f"+{value}".encode("UTF-8") + b"\r\n")
+                        else:
+                            client_connection.send(b"$-1\r\n")
+                    except (KeyError, TypeError):
+                        client_connection.send(f"+{value}".encode("UTF-8") + b"\r\n")
                 if result[0] == b"set":
-                    key = f"{result[1].decode()}"
-                    value = f"{result[2].decode()}"
-                    data[key] = value
-                    client_connection.send(b"+OK\r\n")
+                    if len(result) == 3:
+                        key = f"{result[1].decode()}"
+                        value = f"{result[2].decode()}"
+                        data[key] = DataItem(value)
+                        client_connection.send(b"+OK\r\n")
+                    elif len(result) == 5:
+                        key = f"{result[1].decode()}"
+                        value = f"{result[2].decode()}"
+                        px = f"{result[3].decode()}"
+                        miliseconds = f"{result[4].decode()}"
+                        data[key] = DataItem(value, miliseconds)
+                        client_connection.send(b"+OK\r\n")
             else:
                 client_connection.send(b"-ERR Unknown Command\r\n")
         except ConnectionError as error:
