@@ -47,6 +47,8 @@ class RESPDecoder:
             return self.decode_bulk_string()
         elif byte == b"*":
             return self.decode_array()
+        elif byte is None:
+            raise ConnectionError("Connection terminated")
         else:
             raise Exception(f"Unknown data type byte: {byte}")
            
@@ -76,13 +78,15 @@ def is_bytes(obj):
         return False
 
 def handle_connection(client_connection):
+    print(f"New connection: {client_connection}")
     while True:
         try:
             result = RESPDecoder(client_connection).decode()
+            print(f"result = {result}")
             if type(result) is bytes:
                 if result == b"ping":
                     client_connection.send(b"+PONG\r\n")
-                break
+                #break
             elif type(result) is list:
                 if len(result) <= 2:
                     if result[0] == b"ECHO":
@@ -90,10 +94,11 @@ def handle_connection(client_connection):
                         client_connection.send(arg.encode("UTF-8") + b"\r\n")
                     elif result[0] == b"ping":
                         client_connection.send(b"+PONG\r\n")
-                break
+                #break
             else:
                 client_connection.send(b"-ERR Unknown Command\r\n")
-        except ConnectionError:
+        except ConnectionError as error:
+            print(error)
             break # Exit thread if the connection closes
 
 def main():
