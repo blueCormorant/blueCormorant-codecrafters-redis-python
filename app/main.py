@@ -106,7 +106,7 @@ def handle_connection(client_connection, data):
                     client_connection.send(b"+PONG\r\n")
                 elif result[0] == b"get":
                     key = result[1].decode()
-                    value = data[key]
+                    value = f"+{data[key]}"
                     client_connection.send(value.encode("UTF-8") + b"\r\n")
                 if result[0] == b"set":
                     key = f"{result[1].decode()}"
