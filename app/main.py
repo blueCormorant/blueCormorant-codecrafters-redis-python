@@ -26,7 +26,6 @@ class ConnectionBuffer:
     def read(self, buffer_size):
         if len(self.buffer) < buffer_size:
             data = self.connection.recv(1024)
-            
             if not data: # socket has closed
                 return None
 
@@ -85,11 +84,12 @@ def handle_connection(client_connection):
                     client_connection.send(b"+PONG\r\n")
                 break
             elif type(result) is list:
-                if result[0] == b"ECHO":
-                    arg = f"+{result[1].decode()}"
-                    client_connection.send(arg.encode("UTF-8") + b"\r\n")
-                elif result[0] == b"ping":
-                    client_connection.send(b"+PONG\r\n")
+                if len(result) <= 2:
+                    if result[0] == b"ECHO":
+                        arg = f"+{result[1].decode()}"
+                        client_connection.send(arg.encode("UTF-8") + b"\r\n")
+                    elif result[0] == b"ping":
+                        client_connection.send(b"+PONG\r\n")
                 break
             else:
                 client_connection.send(b"-ERR Unknown Command\r\n")
